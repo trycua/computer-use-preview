@@ -18,10 +18,14 @@ from dotenv import load_dotenv
 load_dotenv()  # Load environment variables from .env file
 
 from agent import BrowserAgent
-from computers import BrowserbaseComputer, PlaywrightComputer
+from computers import BrowserbaseComputer, DesktopComputer, PlaywrightComputer
 
 
 PLAYWRIGHT_SCREEN_SIZE = (1440, 900)
+# Default coordinate space for the desktop env before the target window is
+# resolved on enter (DesktopComputer overrides this with the real window
+# screenshot size).
+DESKTOP_SCREEN_SIZE = (1280, 800)
 
 
 def main() -> int:
@@ -36,9 +40,33 @@ def main() -> int:
     parser.add_argument(
         "--env",
         type=str,
-        choices=("playwright", "browserbase"),
+        choices=("playwright", "browserbase", "desktop"),
         default="playwright",
-        help="The computer use environment to use.",
+        help="The computer use environment to use. 'desktop' drives a native "
+        "app via Cua Driver (https://github.com/trycua/cua).",
+    )
+    parser.add_argument(
+        "--app",
+        type=str,
+        default=None,
+        help="[--env desktop] Target app display name to launch/attach "
+        "(e.g. \"KiCad\", \"Calculator\"). On Windows you may also pass an AUMID.",
+    )
+    parser.add_argument(
+        "--bundle-id",
+        dest="bundle_id",
+        type=str,
+        default=None,
+        help="[--env desktop] App bundle id (macOS, e.g. com.apple.calculator) "
+        "or AUMID (Windows). Preferred over --app when set.",
+    )
+    parser.add_argument(
+        "--window-title",
+        dest="window_title",
+        type=str,
+        default=None,
+        help="[--env desktop] Substring of the target window title, to "
+        "disambiguate when the app has multiple windows.",
     )
     parser.add_argument(
         "--initial_url",
@@ -69,6 +97,18 @@ def main() -> int:
         env = BrowserbaseComputer(
             screen_size=PLAYWRIGHT_SCREEN_SIZE,
             initial_url=args.initial_url
+        )
+    elif args.env == "desktop":
+        if not (args.app or args.bundle_id):
+            raise ValueError(
+                "--env desktop requires --app <name> (or --bundle-id <id>) to "
+                "name the native app to drive."
+            )
+        env = DesktopComputer(
+            screen_size=DESKTOP_SCREEN_SIZE,
+            app=args.app,
+            bundle_id=args.bundle_id,
+            window_title=args.window_title,
         )
     else:
         raise ValueError("Unknown environment: ", args.env)
