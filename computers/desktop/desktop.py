@@ -127,18 +127,6 @@ class _CuaDriver:
             return {"_text": out}
 
 
-def _window_dims(win: dict[str, Any]) -> tuple[int | None, int | None]:
-    """Width/height of a list_windows record, tolerating both shapes.
-
-    macOS / Windows nest geometry under `bounds: {x, y, width, height}`.
-    Linux emits flat top-level `width` / `height`. Handle both.
-    """
-    bounds = win.get("bounds")
-    if isinstance(bounds, dict):
-        return bounds.get("width"), bounds.get("height")
-    return win.get("width"), win.get("height")
-
-
 class DesktopComputer(Computer):
     """A native-desktop `Computer` env driven by cua-driver, scoped to one window."""
 
@@ -234,7 +222,10 @@ class DesktopComputer(Computer):
         if sw and sh:
             self._screen_size = (int(sw), int(sh))
         else:
-            w, h = _window_dims(target)
+            # cua-driver list_windows nests geometry under `bounds` on every
+            # platform (trycua/cua#2018 normalized Linux to match macOS/Windows).
+            bounds = target.get("bounds") or {}
+            w, h = bounds.get("width"), bounds.get("height")
             if w and h:
                 self._screen_size = (int(w), int(h))
 
